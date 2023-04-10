@@ -1,18 +1,21 @@
 
+import java.io.File;
 import java.util.Scanner;
 import java.util.ArrayList;
-import java.io.File;
-import java.util.Queue;
 import java.util.LinkedList;
-import java.util.Stack;
+
 
 public class Project3 {
 
+    // holds initial memory size (bytes) used in memory system
     private static final int MEM_SIZE = 1024; 
 
+    /** Makes memory object and reads input files, running all commands
+     *  on memory object.
+     */
     public static void main(String[] args) throws Exception {
 
-        // file read
+        // read file
         ArrayList<Command> commands = new ArrayList<>();
         try {            
             Scanner sc = new Scanner(new File("input.txt"));
@@ -23,161 +26,160 @@ public class Project3 {
             System.out.println(e);
         }
 
-        // make memory object
+        // make memory object with initial size
         Memory mem = new Memory(MEM_SIZE);
 
-        // process commands
+        // process commands from file
+        System.out.println(mem);
         for(Command cmd : commands) {
             System.out.println(cmd);
-
-            // do mem operation
             if (!mem.processCommand(cmd)) {
+                // throw exception if command was invalid
                 throw new Exception("Could not satisfy request!");
             }
-
             System.out.println(mem);
         }
-
+        
     }
 
 }
 
 
-/** TODO: */
+/** Represents the system memory using a buddy allocation system */
 class Memory {
 
-    // TODO:
-    private int memSize;
-    private ArrayList<MemoryEntry> mem;
+    // list holds all memory blocks
+    private ArrayList<MemoryBlock> mem;
+
+    // holds current character to assign to a block
     private char curId;
 
-    /** TODO: */
+
+    /** Constructs a memory object given an initial size
+     *  @param memSize the initial size of the memory system
+     */
     public Memory(int memSize) {
-        this.memSize = memSize;
-        this.mem = new ArrayList<MemoryEntry>();
-        this.mem.add(new MemoryEntry(memSize));
+        this.mem = new ArrayList<MemoryBlock>();
+        this.mem.add(new MemoryBlock(memSize));
         this.curId = 'A';
     }
 
-    /** TODO: */
+    /** Processes an input file command, if invalid returns false
+     *  @param cmd the command to process (req or rel)
+     *  @return whether or not command could be processed
+     */
     public boolean processCommand(Command cmd) {
-        if (cmd.getType() == CommandType.REQUEST) {
-            return requestMemory(cmd.getRequestSize());
+        if (cmd.commandType == CommandType.REQUEST) {
+            return requestMemory(cmd.requestSize);
         } else {
-            return releaseMemory(cmd.getReleaseId());
+            return releaseMemory(cmd.releaseId);
         }
     }
 
-    /** TODO: */
+    /** Tries to allocate a block of memory given a request
+     *  @param requestSize the size of the memory request
+     *  @return whether or not the allocation was possible
+     */
     private boolean requestMemory(int requestSize) {
 
-        // algo 
-        //  - do entire pass to find min size section (where size is still > reqSize)
-        //      - left-right pass
-        //  - recursively partition min until 2n-1 < rs < 2n
-        //    - each size is added to queue
-        //  - finally, queue FIFO is the new memory partition
-
-
+        // cannot request less than 64 bytes
         if (requestSize < 64) {
             return false;
         }
 
-        Queue<Integer> sizes = new LinkedList<>();
-
-
+        // find smallest memory block still larger than or equal to request
+        // that is also free
         int minSize = Integer.MAX_VALUE;
         int minIdx = -1;
         for (int i = 0; i < mem.size(); i++) {
-            MemoryEntry memEntry = mem.get(i);
-            if (memEntry.id.equals(" ") && memEntry.size >= requestSize) {
-                if (memEntry.size < minSize) {
-                    minSize = memEntry.size;
+            MemoryBlock block = mem.get(i);
+            if (block.id.equals(" ") && block.size >= requestSize) {
+                if (block.size < minSize) {
+                    minSize = block.size;
                     minIdx = i;
                 }
             }
         }
 
-        // op failed
+        // no such block found/available
         if (minIdx == -1) {
             return false;
         }
         
-        // recursively break size at mem index into fitting partitions
+        // iteratively break chosen block into smallest size possible
+        // to still be able to hold request
         while (requestSize <= mem.get(minIdx).size / 2) {
-            int size = mem.get(minIdx).size;
-
-            MemoryEntry split = new MemoryEntry(size / 2);
-            split.buddies.addAll(mem.get(minIdx).buddies);
-            mem.get(minIdx).size = size / 2;
-            mem.get(minIdx).buddies.push(split);
-            split.buddies.push(mem.get(minIdx));
-            mem.add(minIdx + 1, split);
+            mem.add(minIdx + 1, new MemoryBlock(mem.get(minIdx).size / 2));
+            mem.get(minIdx).size /= 2;
         }
         
-        // set current section to be allocated section
+        // attach ID to newly allocated block
         mem.get(minIdx).id = String.valueOf(curId);
         curId++;
 
         return true;
+
     }
 
-    /** TODO: */
+    /** Tries to release a block of memory given a block ID
+     *  @param releaseId the ID of the block to release
+     *  @return whether or not the release was successful
+     */
     private boolean releaseMemory(String releaseId) {
         
+        // find index of block matching given ID
         int memIdx = -1;
-        int size = -1;
         for(int i = 0; i < mem.size(); i++) {
             if (mem.get(i).id.equals(releaseId)) {
                 memIdx = i;
-                size = mem.get(i).size;
                 break;
             }
         }
 
+        // given ID not found in current memory
         if (memIdx == -1) {
             return false;
         }
 
-
+        // remove ID from block
         mem.get(memIdx).id = " ";
 
-        MemoryEntry left =null;
-        MemoryEntry right=null;
+        // merge back memory as much as possible
+        MemoryBlock left;
+        MemoryBlock right;
+        int curSize = mem.get(memIdx).size;
 
         while (true) {
-
+            
+            // get right memory block (if it exists)
+            if (memIdx + 1 < mem.size()) {
+                right = mem.get(memIdx + 1);
+            } else {
+                right = null;
+            }    
+            
+            // get left memory block (if it exists)
             if (memIdx - 1 >= 0) {
                 left = mem.get(memIdx - 1);
-                System.out.print(left.size);
             } else {
                 left = null;
             }
 
+            curSize = mem.get(memIdx).size;
 
-            if (memIdx + 1 < mem.size()) {
-                right = mem.get(memIdx + 1);
-                System.out.println(right.size);
-            } else {
-                right = null;
-            }
-
-            System.out.println(right == null);
-            if (right != null) {
-            System.out.println(right.size + " " +  size);
-            System.out.println(right.id.equals(" "));
-
-            }
-
-if (right != null && right.size == mem.get(memIdx).size && right.id.equals(" ")) {
+            // if right block exists, is same size, and is free, then merge
+            if (right != null && right.size == curSize && right.id.equals(" ")) {
                 mem.get(memIdx).size *= 2;
                 mem.remove(memIdx + 1);
             }
-            else if (left != null && left.size == mem.get(memIdx).size && left.id.equals(" ")) {
+            // if left block exists, is same size, and is free, then merge 
+            // (lower priority than right merge)
+            else if (left != null && left.size == curSize && left.id.equals(" ")) {
                 mem.get(memIdx).size *= 2;
                 mem.remove(memIdx - 1);
                 memIdx--;
-            }   else {
+            // if neither left or right match conditions then merging finished
+            } else {
                 break;
             }
 
@@ -187,12 +189,9 @@ if (right != null && right.size == mem.get(memIdx).size && right.id.equals(" "))
 
     }
 
-    /** TODO: */
-    public int getInitialSize() {
-        return memSize;
-    }
-
-    /** TODO: */
+    /** Output the entire memory block as formatted in the instructions
+     *  @return string representation of the memory
+     */
     @Override
     public String toString() {
         
@@ -202,98 +201,68 @@ if (right != null && right.size == mem.get(memIdx).size && right.id.equals(" "))
         // top line
         output += "--------------";
         for(int i = 1; i < n; i++) {
-            output += "-------------";
+            output += "------------";
         }
         output += "\n";
 
         // middle
-        for (MemoryEntry memEntry : mem) {
-            String sizeLabel = String.format("%4d", memEntry.size);
-            String box = String.format(" " + memEntry.id + "    " + sizeLabel + "K ");
+        for (MemoryBlock block : mem) {
+            String sizeLabel = String.format("%5s", block.size + "K");
+            String box = String.format(" " + block.id + "   " + sizeLabel + " ");
             output += "|" + box;
         }
-        output += "|\n";
+        output += " |\n";
 
         // bottom line
         output += "--------------";
         for(int i = 1; i < n; i++) {
-            output += "-------------";
+            output += "------------";
         }
         output += "\n";
 
         return output;
+
     } 
 
 }
 
-/** TODO: */
-class MemoryEntry {
 
-    // TODO:
+/** Represents a block in the memory */
+class MemoryBlock {
+
+    // possible ID and definite size of block
     public String id;
     public int size;
-    public Stack<MemoryEntry> buddies;
 
-    /** TODO: */
-    public MemoryEntry(int size) {
+    /** Construct a block with a given size
+     *  @param size block size
+     */
+    public MemoryBlock(int size) {
         this.id = " ";
         this.size = size;
-        this.buddies = new Stack<>();
-    }
-
-    /** TODO: */
-    public MemoryEntry(String id, int size) {
-        this.id = id;
-        this.size = size;
-        this.buddies = new Stack<>();
-    }
-
-    /** TODO: */
-    public MemoryEntry(int size, MemoryEntry initialBuddy) {
-        this.id = id;
-        this.size = size;
-        this.buddies = new Stack<>();
-        this.buddies.push(initialBuddy);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-
-        if (obj.getClass() != this.getClass()) {
-            return false;
-        }
-
-        final MemoryEntry other = (MemoryEntry) obj;
-        if (this != other) {
-            return false;
-        }
-
-        return true;
     }
 
 }
 
 
-
-
-/** TODO: */
+/** Possible types of input commands on memory system */
 enum CommandType {
     REQUEST, RELEASE;
 }
 
-/** TODO: */
+/** Represents a input file command to be run on the memory system */
 class Command {
 
-    // TODO:
-    private CommandType commandType;
-    private int requestSize;
-    private String releaseId;
+    // variables used in command
+    public CommandType commandType;
+    public int requestSize;
+    public String releaseId;
 
-    /** TODO: */
+    /** Construct a command object if valid input given
+     *  @param commandStr string to parse into command
+     */
     public Command(String commandStr) throws Exception {
+
         String[] commandArr = commandStr.split("\\s+");
 
         if (commandArr[0].equals("Request")) {
@@ -308,24 +277,12 @@ class Command {
         } else {
             throw new Exception("Invalid command found in input!");
         }
+
     }
 
-    /** TODO: */
-    public CommandType getType() {
-        return commandType;
-    }
-
-    /** TODO: */
-    public int getRequestSize() {
-        return requestSize;
-    }
-
-    /** TODO: */
-    public String getReleaseId() {
-        return releaseId;
-    }
-
-    /** TODO: */
+    /** Provide string representation of command to display
+     *  @return string representing command
+     */
     @Override
     public String toString() {
         if (commandType == CommandType.REQUEST) {
