@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.io.File;
 import java.util.Queue;
 import java.util.LinkedList;
+import java.util.Stack;
 
 public class Project3 {
 
@@ -103,16 +104,15 @@ class Memory {
         }
         
         // recursively break size at mem index into fitting partitions
-        boolean hasSplit = false;
         while (requestSize <= mem.get(minIdx).size / 2) {
             int size = mem.get(minIdx).size;
-            mem.get(minIdx).size = size / 2;
-            mem.add(minIdx + 1, new MemoryEntry(size / 2, -1));
-            hasSplit = true;
-        }
 
-        if (hasSplit) {
-            mem.buddyDirection = 1;
+            MemoryEntry split = new MemoryEntry(size / 2);
+            split.buddies.addAll(mem.get(minIdx).buddies);
+            mem.get(minIdx).size = size / 2;
+            mem.get(minIdx).buddies.push(split);
+            split.buddies.push(mem.get(minIdx));
+            mem.add(minIdx + 1, split);
         }
         
         // set current section to be allocated section
@@ -126,9 +126,9 @@ class Memory {
     private boolean releaseMemory(String releaseId) {
         
         int memIdx = -1;
-        int size;
+        int size = -1;
         for(int i = 0; i < mem.size(); i++) {
-            if (mem.get(i).id == releaseId) {
+            if (mem.get(i).id.equals(releaseId)) {
                 memIdx = i;
                 size = mem.get(i).size;
                 break;
@@ -140,34 +140,51 @@ class Memory {
         }
 
 
-        // only want to merge with buddy blocks
-        // i.e.
-        // given sequence ... 64k 64k(A) 64k 64k(B) ...
-        // if we release A, we only want to merge with the leftmost mem for
-        // result ... 128k 64k 64k(B) ...
-        // if we merge the A mem block right first then this issue happens
-        // result ... 64k 128k 64k (B)
-        // where both 64k mems are left without buddies and cannot be merged back in
+        mem.get(memIdx).id = " ";
 
-
-        MemoryEntry left;
-        MemoryEntry right;
+        MemoryEntry left =null;
+        MemoryEntry right=null;
 
         while (true) {
 
-            if (mem.get(memIdx).buddyDirection == 1) {
+            if (memIdx - 1 >= 0) {
+                left = mem.get(memIdx - 1);
+                System.out.print(left.size);
+            } else {
+                left = null;
+            }
 
-                mem.remove(memIdx + 1);
+
+            if (memIdx + 1 < mem.size()) {
+                right = mem.get(memIdx + 1);
+                System.out.println(right.size);
+            } else {
+                right = null;
+            }
+
+            System.out.println(right == null);
+            if (right != null) {
+            System.out.println(right.size + " " +  size);
+            System.out.println(right.id.equals(" "));
+
+            }
+
+if (right != null && right.size == mem.get(memIdx).size && right.id.equals(" ")) {
                 mem.get(memIdx).size *= 2;
-
-            } 
-  
-
+                mem.remove(memIdx + 1);
+            }
+            else if (left != null && left.size == mem.get(memIdx).size && left.id.equals(" ")) {
+                mem.get(memIdx).size *= 2;
+                mem.remove(memIdx - 1);
+                memIdx--;
+            }   else {
+                break;
+            }
 
         }
 
-
         return true;
+
     }
 
     /** TODO: */
@@ -215,25 +232,46 @@ class MemoryEntry {
     // TODO:
     public String id;
     public int size;
-    public int buddyDirection;
+    public Stack<MemoryEntry> buddies;
 
     /** TODO: */
     public MemoryEntry(int size) {
         this.id = " ";
         this.size = size;
+        this.buddies = new Stack<>();
     }
 
     /** TODO: */
     public MemoryEntry(String id, int size) {
         this.id = id;
         this.size = size;
+        this.buddies = new Stack<>();
     }
 
     /** TODO: */
-    public MemoryEntry(int size, int buddyDirection) {
+    public MemoryEntry(int size, MemoryEntry initialBuddy) {
         this.id = id;
         this.size = size;
-        this.buddyDirection = buddyDirection;
+        this.buddies = new Stack<>();
+        this.buddies.push(initialBuddy);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+
+        if (obj.getClass() != this.getClass()) {
+            return false;
+        }
+
+        final MemoryEntry other = (MemoryEntry) obj;
+        if (this != other) {
+            return false;
+        }
+
+        return true;
     }
 
 }
