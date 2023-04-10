@@ -1,3 +1,4 @@
+
 import java.util.Scanner;
 import java.util.ArrayList;
 import java.io.File;
@@ -6,7 +7,7 @@ import java.util.LinkedList;
 
 public class Project3 {
 
-    private static final int MEM_SIZE = 1024;
+    private static final int MEM_SIZE = 1024; 
 
     public static void main(String[] args) throws Exception {
 
@@ -47,12 +48,14 @@ class Memory {
     // TODO:
     private int memSize;
     private ArrayList<MemoryEntry> mem;
+    private char curId;
 
     /** TODO: */
     public Memory(int memSize) {
         this.memSize = memSize;
-        mem = new ArrayList<MemoryEntry>();
-        mem.add(new MemoryEntry(memSize));
+        this.mem = new ArrayList<MemoryEntry>();
+        this.mem.add(new MemoryEntry(memSize));
+        this.curId = 'A';
     }
 
     /** TODO: */
@@ -74,6 +77,11 @@ class Memory {
         //    - each size is added to queue
         //  - finally, queue FIFO is the new memory partition
 
+
+        if (requestSize < 64) {
+            return false;
+        }
+
         Queue<Integer> sizes = new LinkedList<>();
 
 
@@ -82,8 +90,10 @@ class Memory {
         for (int i = 0; i < mem.size(); i++) {
             MemoryEntry memEntry = mem.get(i);
             if (memEntry.id.equals(" ") && memEntry.size >= requestSize) {
-                minSize = Math.min(memEntry.size, minSize);
-                minIdx = i;
+                if (memEntry.size < minSize) {
+                    minSize = memEntry.size;
+                    minIdx = i;
+                }
             }
         }
 
@@ -91,20 +101,23 @@ class Memory {
         if (minIdx == -1) {
             return false;
         }
-
-        // if requested size greater than half of chosen block, allocate entire block
-        if (requestSize > )
-
+        
         // recursively break size at mem index into fitting partitions
-
-
-        while (mem.get(minIdx) / 2 > requestSize) {
-        mem.set(minIdx, minSize / 2);
-        mem.add(minIdx + 1, minSize / 2);
-
+        boolean hasSplit = false;
+        while (requestSize <= mem.get(minIdx).size / 2) {
+            int size = mem.get(minIdx).size;
+            mem.get(minIdx).size = size / 2;
+            mem.add(minIdx + 1, new MemoryEntry(size / 2, -1));
+            hasSplit = true;
         }
 
-
+        if (hasSplit) {
+            mem.buddyDirection = 1;
+        }
+        
+        // set current section to be allocated section
+        mem.get(minIdx).id = String.valueOf(curId);
+        curId++;
 
         return true;
     }
@@ -112,6 +125,46 @@ class Memory {
     /** TODO: */
     private boolean releaseMemory(String releaseId) {
         
+        int memIdx = -1;
+        int size;
+        for(int i = 0; i < mem.size(); i++) {
+            if (mem.get(i).id == releaseId) {
+                memIdx = i;
+                size = mem.get(i).size;
+                break;
+            }
+        }
+
+        if (memIdx == -1) {
+            return false;
+        }
+
+
+        // only want to merge with buddy blocks
+        // i.e.
+        // given sequence ... 64k 64k(A) 64k 64k(B) ...
+        // if we release A, we only want to merge with the leftmost mem for
+        // result ... 128k 64k 64k(B) ...
+        // if we merge the A mem block right first then this issue happens
+        // result ... 64k 128k 64k (B)
+        // where both 64k mems are left without buddies and cannot be merged back in
+
+
+        MemoryEntry left;
+        MemoryEntry right;
+
+        while (true) {
+
+            if (mem.get(memIdx).buddyDirection == 1) {
+
+                mem.remove(memIdx + 1);
+                mem.get(memIdx).size *= 2;
+
+            } 
+  
+
+
+        }
 
 
         return true;
@@ -162,6 +215,7 @@ class MemoryEntry {
     // TODO:
     public String id;
     public int size;
+    public int buddyDirection;
 
     /** TODO: */
     public MemoryEntry(int size) {
@@ -173,6 +227,13 @@ class MemoryEntry {
     public MemoryEntry(String id, int size) {
         this.id = id;
         this.size = size;
+    }
+
+    /** TODO: */
+    public MemoryEntry(int size, int buddyDirection) {
+        this.id = id;
+        this.size = size;
+        this.buddyDirection = buddyDirection;
     }
 
 }
