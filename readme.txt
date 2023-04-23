@@ -3,7 +3,7 @@
 ## Files
 `Project3.java`
 This file contains all the source code for the project. The Project3 class has a main method which
-has driver code to run the worker-customer simulation.
+has driver code to run the buddy-memory system simulation.
 `input.txt`
 This file has the input commands to run on the buddy memory system.
 
